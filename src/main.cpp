@@ -211,9 +211,9 @@ template <typename ControlSurfaceType>
 class chess_board : public control<ControlSurfaceType> {
     using base_type = control<ControlSurfaceType>;
     chess_game_t game;
-    chess_value_t moves[64];
-    chess_value_t moves_size;
-    chess_value_t touched;
+    chess_index_t moves[64];
+    chess_size_t moves_size;
+    chess_index_t touched;
     spoint16 last_touch;
     
     int move_count;
