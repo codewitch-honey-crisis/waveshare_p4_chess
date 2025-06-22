@@ -394,13 +394,13 @@ class chess_board : public control<ControlSurfaceType> {
                 }
                 const int release_idx = point_to_square(last_touch);
                 if (release_idx != -1) {
-                    chess_index_t mv = chess_move(&game,touched,release_idx);
-                    if(mv!=-2) {
+                    chess_index_t victim = chess_move(&game,touched,release_idx);
+                    if(victim!=-2) {
                         srect16 sq_bnds;
                         square_coords(release_idx, &sq_bnds);
                         this->invalidate(sq_bnds);
-                        if(mv>-1 && mv!=release_idx) { // en passant
-                            square_coords(mv,&sq_bnds);
+                        if(victim>-1 && victim!=release_idx) { // en passant
+                            square_coords(victim,&sq_bnds);
                             this->invalidate(sq_bnds);
                         }
                     }
