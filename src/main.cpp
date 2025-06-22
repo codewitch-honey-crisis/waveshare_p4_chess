@@ -237,8 +237,8 @@ class chess_board : public control<ControlSurfaceType> {
         const spoint16 origin(x * (extent / 8), y * (extent / 8));
         *out_rect = srect16(origin, square_size);
     }
-    static const const_bitmap<alpha_pixel<4>>& chess_icon(int id) {
-        const int type = CHESS_TYPE(id);
+    static const const_bitmap<alpha_pixel<4>>& chess_icon(chess_id_t id) {
+        const chess_type_t type = CHESS_TYPE(id);
         switch (type) {
             case CHESS_PAWN:
                 return cb64_chess_pawn;
@@ -319,7 +319,7 @@ class chess_board : public control<ControlSurfaceType> {
             for (int x = 0; x < extent; x += square_size.width) {
                 const srect16 square(spoint16(x, y), square_size);
                 if (square.intersects(clip)) {
-                    const chess_value_t id = chess_index_to_id(&game,idx);
+                    const chess_id_t id = chess_index_to_id(&game,idx);
                     pixel_type px_bg = (i & 1) ? color_t::brown : color_t::dark_khaki;
                     pixel_type px_bd = (i & 1) ? color_t::gold : color_t::black;
                     if (id > -1 && CHESS_TYPE(id) == CHESS_KING && chess_status(&game,CHESS_TEAM(id)) == CHESS_CHECK) {
@@ -354,9 +354,9 @@ class chess_board : public control<ControlSurfaceType> {
             const srect16 square(spoint16::zero(), ssize16(extent / 8, extent / 8));
             int sq = point_to_square(*locations);
             if (sq > -1) {
-                const chess_value_t id = chess_index_to_id(&game,sq);
+                const chess_id_t id = chess_index_to_id(&game,sq);
                 if (id > -1) {
-                    const chess_value_t team = CHESS_TEAM(id);
+                    const chess_team_t team = CHESS_TEAM(id);
                     if (chess_turn(&game) == team) {
                         touched = sq;
                         moves_size = chess_compute_moves(&game,sq,moves);
@@ -379,9 +379,9 @@ class chess_board : public control<ControlSurfaceType> {
     }
     void on_release() override {
         if (touched > -1) {
-            const signed char id = chess_index_to_id(&game,touched);
+            const chess_id_t id = chess_index_to_id(&game,touched);
             const bool is_king = (CHESS_TYPE(id) == CHESS_KING);
-            const chess_value_t team = CHESS_TEAM(id);
+            const chess_team_t team = CHESS_TEAM(id);
             const int16_t extent = this->dimensions().aspect_ratio() >= 1 ? this->dimensions().height : this->dimensions().width;
             const srect16 square(spoint16::zero(), ssize16(extent / 8, extent / 8));
             const int x = touched % 8 * (extent / 8), y = touched / 8 * (extent / 8);
@@ -394,7 +394,7 @@ class chess_board : public control<ControlSurfaceType> {
                 }
                 const int release_idx = point_to_square(last_touch);
                 if (release_idx != -1) {
-                    chess_value_t mv = chess_move(&game,touched,release_idx);
+                    chess_index_t mv = chess_move(&game,touched,release_idx);
                     if(mv!=-2) {
                         srect16 sq_bnds;
                         square_coords(release_idx, &sq_bnds);
