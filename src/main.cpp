@@ -473,17 +473,31 @@ class chess_board : public control<ControlSurfaceType> {
                 const srect16 square(spoint16(x, y), square_size);
                 if (square.intersects(clip)) {
                     const chess_id_t id = chess_index_to_id(&game,idx);
-                    pixel_type px_bg = (i & 1) ? color_t::brown : color_t::dark_khaki;
-                    pixel_type px_bd = (i & 1) ? color_t::gold : color_t::black;
+                    const pixel_type bg = (i & 1) ? color_t::brown : color_t::dark_khaki;
+                    const pixel_type bd = (i & 1) ? color_t::gold : color_t::black;
+                    // TODO: clean this up
+                    pixel_type px_bg = bg;
+                    pixel_type px_bd = bd;
                     if (id > -1 && CHESS_TYPE(id) == CHESS_KING && chess_status(&game,CHESS_TEAM(id)) == CHESS_CHECK) {
                         px_bd = color_t::red;
                     }
+                    bool is_move = false;
                     if (touched == idx || chess_contains_move(moves, moves_size, idx)) {
                         px_bg = color_t::light_blue;
                         px_bd = color_t::cornflower_blue;
+                        is_move = true;
                     }
-                    draw::filled_rectangle(destination, square, px_bg);
-                    draw::rectangle(destination, square.inflate(-2, -2), px_bd);
+                    
+                    if(!is_move) {
+                        draw::filled_rectangle(destination, square, px_bg);
+                        draw::rectangle(destination, square.inflate(-2, -2), px_bd); 
+                    } else {
+                        draw::filled_rectangle(destination, square, bg);
+                        draw::rectangle(destination, square.inflate(-2, -2), bd);
+                        const int16_t deflate = (idx==touched)?0: -(square_size.width/4);
+                        draw::filled_rectangle(destination, square.inflate(deflate,deflate), px_bg);
+                        
+                    }
                     if (CHESS_NONE != id) {
                         auto ico = chess_icon(id);
                         const srect16 bounds = ((srect16)ico.bounds()).center(square_size.bounds()).offset(x, y);
