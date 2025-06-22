@@ -200,11 +200,7 @@ static void touch_init(void) {
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &touch_handle));
     lcd.on_touch_callback(uix_on_touch);
 }
-// using pixel_t = pixel<
-//     channel_traits<channel_name::B,8>,
-//     channel_traits<channel_name::G,8>,
-//     channel_traits<channel_name::R,8>
-// >;
+
 using pixel_t = rgb_pixel<LCD_BIT_PER_PIXEL>;
 using color_t = color<pixel_t>;
 using uix_color = color<rgba_pixel<32>>;
