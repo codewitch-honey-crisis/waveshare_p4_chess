@@ -206,6 +206,157 @@ using color_t = color<pixel_t>;
 using uix_color = color<rgba_pixel<32>>;
 
 using screen_t = screen<pixel_t>;
+static chess_index_t just_promoted = -1;
+template <typename ControlSurfaceType>
+class chess_promotion : public control<ControlSurfaceType> {
+    using base_type = control<ControlSurfaceType>;
+public:
+    using control_surface_type = ControlSurfaceType;
+    using pixel_type = typename ControlSurfaceType::pixel_type;
+    using palette_type = typename ControlSurfaceType::palette_type;
+    /// @brief Moves a chess_promotion control
+    /// @param rhs The control to move
+    chess_promotion(chess_promotion&& rhs) {
+        do_move_control(rhs);
+    }
+    /// @brief Moves a chess_promotion control
+    /// @param rhs The control to move
+    /// @return this
+    chess_promotion& operator=(chess_promotion&& rhs) {
+        do_move_control(rhs);
+        return *this;
+    }
+    /// @brief Copies a chess_promotion control
+    /// @param rhs The control to copy
+    chess_promotion(const chess_promotion& rhs) {
+        do_copy_control(rhs);
+    }
+    /// @brief Copies a chess_promotion control
+    /// @param rhs The control to copy
+    /// @return this
+    chess_promotion& operator=(const chess_promotion& rhs) {
+        do_copy_control(rhs);
+        return *this;
+    }
+    /// @brief Constructs a chess_promotion from a given parent with an optional palette
+    /// @param parent The parent the control is bound to - usually the screen
+    /// @param palette The palette associated with the control. This is usually the screen's palette.
+    chess_promotion(invalidation_tracker& parent, const palette_type* palette = nullptr) : base_type(parent, palette) {
+        init();
+    }
+    /// @brief Constructs a chess_promotion from a given parent with an optional palette
+    chess_promotion() : base_type() {
+        init();
+    }
+    chess_index_t index() const {
+        return m_index;
+    }
+    void index(chess_index_t value) {
+        if(value<0 || value>63) {
+            return;
+        }
+        m_index = value;
+    }
+    chess_game_t* game() const {
+        return m_game;
+    }
+    void game(chess_game_t* value) {
+        m_game = value;
+    }
+   private:
+    chess_game_t* m_game;
+    chess_index_t m_index;
+    spoint16 m_last_touch;
+    void init() {
+        m_index = -1;
+        m_game = nullptr;
+    }
+    int point_to_square(spoint16 point) {
+        const int16_t extent = this->dimensions().width;
+        const int x = point.x / (extent / 4);
+        return x;
+    }
+    void square_coords(int index, srect16* out_rect) {
+        const int16_t extent = this->dimensions().width;
+        const ssize16 square_size(extent / 4, extent / 4);
+        const int x = index % 4;
+        const spoint16 origin(x * (extent / 4), 0);
+        *out_rect = srect16(origin, square_size);
+    }
+    static const const_bitmap<alpha_pixel<4>>& chess_icon(chess_id_t id) {
+            const chess_type_t type = CHESS_TYPE(id);
+            switch (type) {
+                case CHESS_PAWN:
+                    return cb64_chess_pawn;
+                case CHESS_KNIGHT:
+                    return cb64_chess_knight;
+                case CHESS_BISHOP:
+                    return cb64_chess_bishop;
+                case CHESS_ROOK:
+                    return cb64_chess_rook;
+                case CHESS_QUEEN:
+                    return cb64_chess_queen;
+                case CHESS_KING:
+                    return cb64_chess_king;
+            }
+            assert(false);  // invalid piece
+            return cb64_chess_pawn;
+        }
+   protected:
+    void do_move_control(chess_promotion& rhs) {
+        do_copy_control(rhs);
+    }
+    void do_copy_control(chess_promotion& rhs) {
+        m_index = rhs.m_index;
+        m_game = rhs.m_game;
+        m_last_touch = rhs.m_last_touch;
+    }
+
+    void on_paint(control_surface_type& destination, const srect16& clip) override {
+        const int16_t extent = this->dimensions().width;
+        const int16_t sq_width = (extent/4);
+        const int idx = point_to_square(m_last_touch);
+        int type = 1;
+        for(int x = 0; x < extent; x+=sq_width) {
+            const ssize16 square_size(sq_width,sq_width);
+            const srect16 square(spoint16(x,0),square_size);
+            pixel_type bg = color_t::dark_green,
+                bd = color_t::dark_olive_green;
+            if(idx==(x/sq_width)) {
+                bg=color_t::green;
+                bd=color_t::dark_green;
+            }
+            draw::filled_rectangle(destination,square,color_t::dark_green);
+            draw::rectangle(destination,square.inflate(-2,-2),color_t::dark_olive_green);
+            const auto ico = chess_icon(CHESS_ID(0,type));
+            const srect16 icon = ((srect16)ico.bounds()).center(square_size.bounds()).offset(x, 0);
+            draw::icon(destination,icon.top_left(),ico,color_t::khaki);
+            ++type;
+        }
+    }
+    bool on_touch(size_t locations_size, const spoint16* locations) override {
+        if(locations_size) {
+            m_last_touch = locations[0];
+        }
+        return true;
+    }
+    void on_release() override {
+        if(m_game!=nullptr && m_index>-1 && m_index<64) {
+            chess_type_t type = (chess_type_t)(1+point_to_square(m_last_touch));
+            if(CHESS_SUCCESS==chess_promote_pawn(m_game,m_index,type)) {
+                just_promoted = m_index;
+            }
+        }
+        this->visible(false);
+    }
+};
+
+
+using surface_t = screen_t::control_surface_type;
+using chess_promotion_t = chess_promotion<surface_t>;
+
+chess_promotion_t promotion_top;
+chess_promotion_t promotion_bottom;
 
 template <typename ControlSurfaceType>
 class chess_board : public control<ControlSurfaceType> {
@@ -219,6 +370,8 @@ class chess_board : public control<ControlSurfaceType> {
     int move_count;
     void init_board() {
         chess_init(&game);
+        promotion_top.game(&game);
+        promotion_bottom.game(&game);
         moves_size = 0;
         touched = -1;
     }
@@ -344,7 +497,10 @@ class chess_board : public control<ControlSurfaceType> {
             toggle = !toggle;
         }
     }
-    bool on_touch(size_t locations_size, const spoint16* locations) {
+    bool on_touch(size_t locations_size, const spoint16* locations) override {
+        if(promotion_bottom.visible() || promotion_top.visible()) {
+            return false;
+        }
         if (touched > -1) {
             if (locations_size) last_touch = locations[0];
             return true;
@@ -403,6 +559,17 @@ class chess_board : public control<ControlSurfaceType> {
                             square_coords(victim,&sq_bnds);
                             this->invalidate(sq_bnds);
                         }
+                        if(CHESS_TYPE(id)==CHESS_PAWN) { // check for a promotion
+                            if(team==CHESS_FIRST && release_idx>64-8) {
+                                // promote 
+                                promotion_bottom.index(release_idx);
+                                promotion_bottom.visible(true);
+                            } else if(team==CHESS_SECOND && release_idx<8) {
+                                // promote 
+                                promotion_top.index(release_idx);
+                                promotion_top.visible(true);
+                            }
+                        }
                     }
                 }
                 moves_size = 0;
@@ -414,7 +581,6 @@ class chess_board : public control<ControlSurfaceType> {
 
 screen_t main_screen;
 
-using surface_t = screen_t::control_surface_type;
 using chess_board_t = chess_board<surface_t>;
 
 chess_board_t board;
@@ -438,6 +604,17 @@ extern "C" void app_main() {
     main_screen.background_color(color_t::black);
     board.bounds(srect16(spoint16::zero(),ssize16(64*8,64*8)).center(main_screen.bounds()));
     main_screen.register_control(board);
+    const int16_t sq_width = board.dimensions().width/8;
+    const size16 sq_size(sq_width,sq_width);
+    srect16 contained(0,0,main_screen.dimensions().width-1,board.bounds().y1-1);
+    const srect16 promo_rect(0,0,sq_width*4-1,sq_width-1);
+    promotion_top.bounds(promo_rect.center(contained));
+    promotion_top.visible(false);
+    main_screen.register_control(promotion_top);
+    contained.offset_inplace(0,main_screen.dimensions().height-contained.height());
+    promotion_bottom.bounds(promo_rect.center(contained));
+    promotion_bottom.visible(false);
+    main_screen.register_control(promotion_bottom);
     
     lcd.active_screen(main_screen);
 
@@ -445,5 +622,15 @@ extern "C" void app_main() {
     xTaskCreate(loop_task,"loop_task",4096,nullptr,uxTaskPriorityGet(NULL),&loop_handle);
 }
 void loop() {
+    // hack
+    if(just_promoted) {
+        const int16_t extent = board.dimensions().aspect_ratio()>=1.f?board.dimensions().width:board.dimensions().height;
+        const ssize16 square_size(extent / 8, extent / 8);
+        const int x = just_promoted % 8;
+        const int y = just_promoted / 8;
+        const spoint16 origin(x * (extent / 8), y * (extent / 8));
+        just_promoted = -1;
+        main_screen.invalidate(srect16(origin.offset(board.bounds().top_left()),square_size));
+    }
     lcd.update();
 }
